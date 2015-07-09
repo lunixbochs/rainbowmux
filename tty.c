@@ -23,6 +23,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <math.h>
 #include <resolv.h>
 #include <stdlib.h>
 #include <string.h>
@@ -416,11 +417,41 @@ tty_puts(struct tty *tty, const char *s)
 		write(tty->log_fd, s, strlen(s));
 }
 
+int
+rgb_value(int red, int green, int blue) {
+	int gray_possible = 1;
+	float sep = 42.5;
+	int gray = 0;
+	while (gray_possible) {
+		if (red < sep || green < sep || blue < sep) {
+			gray = red < sep && green < sep && blue < sep;
+			gray_possible = 0;
+		}
+		sep += 42.5;
+	}
+	if (gray) {
+		return 232 + round(((float)red + (float)green + (float)blue)/33);
+	} else {
+		int val = 16;
+		val += (int)(6 * ((float)red / 256)) * 36;
+		val += (int)(6 * ((float)green / 256)) * 6;
+		val += (int)(6 * ((float)blue / 256)) * 1;
+		return val;
+	}
+}
+
 void
 tty_putc(struct tty *tty, u_char ch)
 {
 	const char	*acs;
 	u_int		 sx;
+	float freq = 0.05;
+	static int global = 0;
+	int i = tty->cx + (global++ * freq / 2);
+	int red = sinf(freq * i + 0) * 127 + 128;
+	int green = sinf(freq * i + 2 * M_PI / 3) * 127 + 128;
+	int blue = sinf(freq * i + 4 * M_PI / 3) * 127 + 128;
+	tty_putcode1(tty, TTYC_SETAF, rgb_value(red, green, blue));
 
 	if (tty->cell.attr & GRID_ATTR_CHARSET) {
 		acs = tty_acs_get(tty, ch);
